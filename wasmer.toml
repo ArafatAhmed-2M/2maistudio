@@ -1,0 +1,19 @@
+[package]
+name = "2maistudio"
+version = "0.1.0"
+description = "React Vite Tailwind App"
+
+[[commands]]
+name = "start"
+runner = "static-web-server"
+execution-mode = "once"
+
+[fs]
+dist = "./dist"
+
+[serve]
+root = "./dist"
+port = 8080
+
+[build]
+command = "npm install && npm run build"
