@@ -1,0 +1,214 @@
+@import "tailwindcss";
+
+/* ============================================
+   2M AI Studio — Global Theme & Animations
+   ============================================ */
+
+@theme {
+  --font-inter: "Inter", sans-serif;
+  --font-orbitron: "Orbitron", sans-serif;
+
+  /* Neon Blue & Purple accent palette */
+  --color-neon-blue: #00d4ff;
+  --color-neon-purple: #a855f7;
+  --color-neon-pink: #ec4899;
+  --color-dark-900: #0a0a0f;
+  --color-dark-800: #0f0f1a;
+  --color-dark-700: #161625;
+  --color-dark-600: #1e1e35;
+  --color-dark-500: #2a2a45;
+  --color-glass-white: rgba(255, 255, 255, 0.05);
+  --color-glass-border: rgba(255, 255, 255, 0.08);
+}
+
+/* Base body styles */
+body {
+  font-family: "Inter", sans-serif;
+  background-color: #0a0a0f;
+  color: #e2e8f0;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0f;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #00d4ff, #a855f7);
+  border-radius: 3px;
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Neon glow effects */
+.neon-glow {
+  box-shadow: 0 0 15px rgba(0, 212, 255, 0.15),
+              0 0 30px rgba(0, 212, 255, 0.05);
+}
+
+.neon-glow-strong {
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.3),
+              0 0 60px rgba(168, 85, 247, 0.15);
+}
+
+.neon-text {
+  text-shadow: 0 0 10px rgba(0, 212, 255, 0.5),
+               0 0 20px rgba(0, 212, 255, 0.3);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #00d4ff 0%, #a855f7 50%, #ec4899 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Button gradient */
+.btn-gradient {
+  background: linear-gradient(135deg, #00d4ff 0%, #a855f7 100%);
+  transition: all 0.3s ease;
+}
+.btn-gradient:hover {
+  background: linear-gradient(135deg, #00d4ff 0%, #c084fc 100%);
+  box-shadow: 0 0 25px rgba(0, 212, 255, 0.4),
+              0 0 50px rgba(168, 85, 247, 0.2);
+  transform: translateY(-1px);
+}
+.btn-gradient:active {
+  transform: translateY(0);
+}
+.btn-gradient:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Pulse ring animation for processing */
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.4; }
+  100% { transform: scale(0.8); opacity: 1; }
+}
+.pulse-ring {
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+/* Orbit animation */
+@keyframes orbit {
+  0% { transform: rotate(0deg) translateX(40px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(40px) rotate(-360deg); }
+}
+.orbit {
+  animation: orbit 3s linear infinite;
+}
+.orbit-reverse {
+  animation: orbit 4s linear infinite reverse;
+}
+
+/* Floating animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Grid background pattern */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+/* Shimmer loading effect */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.03) 25%,
+    rgba(255,255,255,0.08) 50%,
+    rgba(255,255,255,0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Spin animation for loader */
+@keyframes spin-slow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+/* Custom scrollbar for model list */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 255, 0.3);
+  border-radius: 2px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 255, 0.5);
+}
+
+/* Smooth model card selection transition */
+@keyframes fadeInUp {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fadeInUp 0.2s ease-out;
+}
+
+/* Slide-in animation for credit toast */
+@keyframes slideInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-slide-in-up {
+  animation: slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Pulse animation for credit badge updates */
+@keyframes creditPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+.animate-credit-pulse {
+  animation: creditPulse 0.6s ease-in-out;
+}
