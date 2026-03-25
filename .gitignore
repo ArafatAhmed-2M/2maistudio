@@ -1,48 +1,87 @@
-```
+```gitignore
 # Dependencies
 node_modules/
+
+# Build outputs
+dist/
+build/
+*.js.map
+*.ts.map
 
 # Environment
 .env
 .env.local
 *.env.*
 
-# Logs
-*.log
-
-# Temporary files
-*.tmp
-*.swp
-
 # Editors
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Temp files
+*.tmp
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# Build outputs
-dist/
-build/
+.Python
+*.so
 *.egg-info/
+.eggs/
+
+# Node.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # OS generated files
 .DS_Store
 Thumbs.db
 
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
-
 # Testing
-.pytest_cache/
 .mypy_cache/
+.pytest_cache/
+.nyc_output/
+coverage/
 
-# Virtual environments
-venv/
-.venv/
+# Bundler
+.sass-cache/
+.bundle/
+.jekyll-cache/
+.sprockets-manifest*
+
+# Vim
+*.un~
+Session.vim
+.netrwhist
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+```
+
+Wait, let me reconsider this. Looking at the file changes, there are only TypeScript/React source files being added and modified, no build artifacts, dependencies, or temporary files. According to rule #6, if the change list contains ONLY source or config files and NO build artifacts, dependencies, or temp files, I should output an EMPTY .gitignore.
+
+The files mentioned are:
+- Added: `src/components/VideoGallery.tsx`, `src/components/VideoModeSelector.tsx` (source files)
+- Modified: `src/App.tsx`, `src/services/leonardo.ts` (source files)
+
+No build artifacts, dependencies, or temporary files are present in the changes.
+
+```gitignore
+
 ```

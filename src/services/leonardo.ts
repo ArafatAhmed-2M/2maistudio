@@ -27,6 +27,14 @@ export interface GenerationRequest {
   sdVersion?: string;
 }
 
+export interface VideoGenerationRequest {
+  prompt: string;
+  modelId: string;
+  ratio?: '16:9' | '9:16' | '1:1' | '4:3' | '3:4';
+  duration?: number; // in seconds
+  resolution?: string; // e.g., "720p", "1080p"
+}
+
 export interface GeneratedImage {
   id: string;
   url: string;
@@ -34,10 +42,25 @@ export interface GeneratedImage {
   likeCount: number;
 }
 
+export interface GeneratedVideo {
+  id: string;
+  url: string;
+  thumbnail_url?: string;
+  nsfw: boolean;
+  duration?: number;
+  resolution?: string;
+}
+
 export interface GenerationResult {
   id: string;
   status: "PENDING" | "COMPLETE" | "FAILED";
   generatedImages: GeneratedImage[];
+}
+
+export interface VideoGenerationResult {
+  id: string;
+  status: "PENDING" | "COMPLETE" | "FAILED";
+  generatedVideos: GeneratedVideo[];
 }
 
 /** A model available on the Leonardo.ai platform */
@@ -58,6 +81,21 @@ export interface LeonardoModel {
   type?: string;
   sdVersion?: string;
   createdAt?: string;
+}
+
+/** A video model available on the Leonardo.ai platform */
+export interface LeonardoVideoModel {
+  id: string;
+  name: string;
+  description: string;
+  nsfw: boolean;
+  featured: boolean;
+  thumbnail_url?: string | null;
+  status?: string;
+  type?: string;
+  createdAt?: string;
+  supportedResolutions?: string[];
+  maxDuration?: number; // in seconds
 }
 
 /** User credit / subscription information */
@@ -308,6 +346,29 @@ export async function fetchPlatformModels(): Promise<LeonardoModel[]> {
 }
 
 /**
+ * Fetches all available video generation models from Leonardo.ai.
+ * Returns an array of video models sorted by featured + name.
+ */
+export async function fetchVideoModels(): Promise<LeonardoVideoModel[]> {
+  const data = await apiRequest<{
+    video_models: LeonardoVideoModel[];
+  }>("/video-models", {
+    method: "GET",
+  });
+
+  const models = data.video_models || [];
+
+  // Sort: featured first, then by name
+  models.sort((a, b) => {
+    if (a.featured && !b.featured) return -1;
+    if (!a.featured && b.featured) return 1;
+    return (a.name || "").localeCompare(b.name || "");
+  });
+
+  return models;
+}
+
+/**
  * Determine safe dimensions for a model.
  * Leonardo.ai is very strict about width/height.
  * - SDXL models: typically 1024x1024
@@ -441,6 +502,91 @@ export async function checkGenerationStatus(
       url: img.url,
       nsfw: img.nsfw,
       likeCount: img.likeCount,
+    })),
+  };
+}
+
+/**
+ * Initiates a video generation request.
+ * Returns the generation ID used for polling.
+ */
+export async function startVideoGeneration(
+  request: VideoGenerationRequest
+): Promise<string> {
+  const payload: Record<string, unknown> = {
+    prompt: request.prompt,
+    modelId: request.modelId,
+  };
+
+  // Add optional parameters if provided
+  if (request.ratio) {
+    payload.ratio = request.ratio;
+  }
+  if (request.duration) {
+    payload.duration = request.duration;
+  }
+  if (request.resolution) {
+    payload.resolution = request.resolution;
+  }
+
+  console.log("Video generation payload:", JSON.stringify(payload, null, 2));
+
+  const data = await apiRequest<{
+    videoGenerationJob: { generationId: string };
+  }>("/video-generations", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  if (!data.videoGenerationJob?.generationId) {
+    throw new Error(
+      "No generation ID returned from the API. The request may have been rejected."
+    );
+  }
+
+  return data.videoGenerationJob.generationId;
+}
+
+/**
+ * Polls the status of a video generation by its ID.
+ * Returns the current status and any generated videos.
+ */
+export async function checkVideoGenerationStatus(
+  generationId: string
+): Promise<VideoGenerationResult> {
+  const data = await apiRequest<{
+    video_generations_by_pk: {
+      id: string;
+      status: "PENDING" | "COMPLETE" | "FAILED";
+      generated_videos: Array<{
+        id: string;
+        url: string;
+        thumbnail_url?: string;
+        nsfw: boolean;
+        duration?: number;
+        resolution?: string;
+      }>;
+    };
+  }>(`/video-generations/${generationId}`, {
+    method: "GET",
+  });
+
+  if (!data.video_generations_by_pk) {
+    throw new Error("Video generation not found. It may have expired.");
+  }
+
+  const gen = data.video_generations_by_pk;
+
+  return {
+    id: gen.id,
+    status: gen.status,
+    generatedVideos: (gen.generated_videos || []).map((vid) => ({
+      id: vid.id,
+      url: vid.url,
+      thumbnail_url: vid.thumbnail_url,
+      nsfw: vid.nsfw,
+      duration: vid.duration,
+      resolution: vid.resolution,
     })),
   };
 }
