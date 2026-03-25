@@ -21,6 +21,7 @@ import HeroSection from "./components/HeroSection";
 import PromptInput from "./components/PromptInput";
 import ProcessingAnimation from "./components/ProcessingAnimation";
 import ImageGallery, { type GalleryImage } from "./components/ImageGallery";
+import VideoGallery, { type GalleryVideo } from "./components/VideoGallery";
 import ErrorDisplay from "./components/ErrorDisplay";
 import SettingsModal from "./components/SettingsModal";
 import CreditToast from "./components/CreditToast";
@@ -38,6 +39,12 @@ import {
   DEFAULT_MODEL_ID,
   type LeonardoModel,
   type UserCredits,
+  type LeonardoVideoModel,
+  type VideoGenerationRequest,
+  type GeneratedVideo,
+  fetchVideoModels,
+  startVideoGeneration,
+  checkVideoGenerationStatus,
 } from "./services/leonardo";
 
 // ── Polling configuration ────────────────────────────────────────
@@ -56,6 +63,10 @@ export default function App() {
   const [generationStartTime, setGenerationStartTime] = useState(0);
   const [statusMessage, setStatusMessage] = useState("Generating your image...");
   const [images, setImages] = useState<GalleryImage[]>([]);
+  const [videos, setVideos] = useState<GalleryVideo[]>([]);
+
+  // Mode selection: 'image' or 'video'
+  const [mode, setMode] = useState<'image' | 'video'>('image');
 
   // Model state
   const [models, setModels] = useState<LeonardoModel[]>([]);
@@ -64,6 +75,13 @@ export default function App() {
   );
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
+
+  // Video model state
+  const [videoModels, setVideoModels] = useState<LeonardoVideoModel[]>([]);
+  const [selectedVideoModelId, setSelectedVideoModelId] = useState<string>("");
+  const [selectedVideoRatio, setSelectedVideoRatio] = useState<string>('16:9');
+  const [isLoadingVideoModels, setIsLoadingVideoModels] = useState(false);
+  const [videoModelError, setVideoModelError] = useState<string | null>(null);
 
   // ── Credit state ─────────────────────────────────────────────────
   const [credits, setCredits] = useState<UserCredits | null>(null);
@@ -151,6 +169,36 @@ export default function App() {
   }, []);
 
   /**
+   * Fetch video models from Leonardo.ai API.
+   */
+  const handleFetchVideoModels = useCallback(async () => {
+    if (!getApiKey()) return;
+
+    setIsLoadingVideoModels(true);
+    setVideoModelError(null);
+
+    try {
+      const fetchedVideoModels = await fetchVideoModels();
+      setVideoModels(fetchedVideoModels);
+
+      // Auto-select first video model if none selected
+      if (fetchedVideoModels.length > 0 && !selectedVideoModelId) {
+        const featured = fetchedVideoModels.find((m) => m.featured);
+        const fallback = featured || fetchedVideoModels[0];
+        setSelectedVideoModelId(fallback.id);
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to fetch video models";
+      setVideoModelError(message);
+      console.error("Failed to fetch video models:", err);
+    } finally {
+      setIsLoadingVideoModels(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVideoModelId]);
+
+  /**
    * On initial mount: load cached models and fetch fresh data if API key exists.
    * Also fetch credits on mount.
    */
@@ -202,7 +250,7 @@ export default function App() {
   const selectedModel = models.find((m) => m.id === selectedModelId);
 
   /**
-   * Main generation handler.
+   * Main generation handler for images.
    * Sends a MINIMAL request to Leonardo.ai and initiates the polling loop.
    *
    * ── KEY FIX FOR 403 ──
@@ -211,6 +259,11 @@ export default function App() {
    */
   const handleGenerate = useCallback(
     async (prompt: string, negativePrompt: string) => {
+      if (mode === 'video') {
+        handleGenerateVideo(prompt);
+        return;
+      }
+
       // Reset state
       setError(null);
       setStatus("submitting");
@@ -366,7 +419,164 @@ export default function App() {
         handleFetchCredits();
       }
     },
-    [selectedModelId, selectedModel, credits, handleFetchCredits]
+    [selectedModelId, selectedModel, credits, handleFetchCredits, mode]
+  );
+
+  /**
+   * Video generation handler.
+   */
+  const handleGenerateVideo = useCallback(
+    async (prompt: string) => {
+      // Reset state
+      setError(null);
+      setStatus("submitting");
+      setGenerationStartTime(Date.now());
+      setStatusMessage("Sending video generation request to Leonardo.ai...");
+      abortRef.current = false;
+      setShowCreditToast(false);
+
+      // Save current credits for comparison
+      const currentTotal = credits
+        ? credits.apiSubscriptionTokens + credits.apiPaidTokens
+        : null;
+      setCreditsBefore(currentTotal);
+
+      // Save for retry
+      lastPromptRef.current = { prompt, negative: "" };
+
+      try {
+        if (!selectedVideoModelId) {
+          throw new Error("Please select a video model");
+        }
+
+        // Step 1: Send the video generation request
+        const generationId = await startVideoGeneration({
+          prompt,
+          modelId: selectedVideoModelId,
+          ratio: selectedVideoRatio as '16:9' | '9:16' | '1:1' | '4:3' | '3:4',
+          duration: 5, // Default 5 seconds
+        });
+
+        if (abortRef.current) return;
+
+        // Step 2: Begin polling loop
+        setStatus("polling");
+        setStatusMessage("AI is generating your video...");
+
+        let attempts = 0;
+        const startTime = Date.now();
+
+        const pollVideo = async () => {
+          if (abortRef.current) return;
+
+          attempts++;
+
+          try {
+            const result = await checkVideoGenerationStatus(generationId);
+
+            if (abortRef.current) return;
+
+            if (result.status === "COMPLETE") {
+              // ✅ Success — video is ready
+              const elapsed = Math.floor((Date.now() - startTime) / 1000);
+
+              if (result.generatedVideos.length > 0) {
+                const newVideos: GalleryVideo[] = result.generatedVideos.map(
+                  (vid) => ({
+                    id: vid.id,
+                    url: vid.url,
+                    thumbnail_url: vid.thumbnail_url,
+                    prompt,
+                    generatedAt: Date.now(),
+                    elapsedSeconds: elapsed,
+                    modelName: videoModels.find(m => m.id === selectedVideoModelId)?.name || "Unknown Model",
+                    duration: vid.duration,
+                    resolution: vid.resolution,
+                  })
+                );
+
+                setVideos((prev) => [...newVideos, ...prev]);
+              }
+
+              setStatus("idle");
+
+              // Re-check credits after generation
+              const updatedCredits = await handleFetchCredits();
+              if (updatedCredits && currentTotal !== null) {
+                const newTotal =
+                  updatedCredits.apiSubscriptionTokens +
+                  updatedCredits.apiPaidTokens;
+                setCreditsAfter(newTotal);
+                setShowCreditToast(true);
+
+                setTimeout(() => {
+                  setShowCreditToast(false);
+                }, 8000);
+              }
+
+              return;
+            }
+
+            if (result.status === "FAILED") {
+              setError(
+                "Video generation failed on the server. This may be due to content moderation or a server issue. Please try a different prompt."
+              );
+              setStatus("error");
+              handleFetchCredits();
+              return;
+            }
+
+            // ⏳ Still pending — continue polling
+            if (attempts >= MAX_POLL_ATTEMPTS) {
+              setError(
+                "Video generation timed out after 10 minutes. Please try again."
+              );
+              setStatus("error");
+              handleFetchCredits();
+              return;
+            }
+
+            setStatusMessage(
+              attempts < 3
+                ? "AI is generating your video..."
+                : attempts < 6
+                ? "Rendering video frames..."
+                : "Almost done — finalizing your video..."
+            );
+
+            pollingRef.current = setTimeout(pollVideo, POLL_INTERVAL_MS);
+          } catch (pollError) {
+            if (abortRef.current) return;
+            if (attempts < MAX_POLL_ATTEMPTS) {
+              setStatusMessage("Connection hiccup — retrying...");
+              pollingRef.current = setTimeout(pollVideo, POLL_INTERVAL_MS);
+            } else {
+              setError(
+                pollError instanceof Error
+                  ? pollError.message
+                  : "An unexpected error occurred while checking video generation status."
+              );
+              setStatus("error");
+              handleFetchCredits();
+            }
+          }
+        };
+
+        pollingRef.current = setTimeout(pollVideo, POLL_INTERVAL_MS);
+      } catch (submitError) {
+        if (abortRef.current) return;
+
+        const errMsg =
+          submitError instanceof Error
+            ? submitError.message
+            : "Failed to submit video generation request. Please try again.";
+
+        setError(errMsg);
+        setStatus("error");
+        handleFetchCredits();
+      }
+    },
+    [selectedVideoModelId, videoModels, credits, handleFetchCredits]
   );
 
   /** Retry the last failed generation */
@@ -409,19 +619,72 @@ export default function App() {
           selectedModelName={selectedModel?.name}
         />
 
+        {/* Mode Toggle */}
+        <div className="mb-6 flex justify-center">
+          <div className="inline-flex rounded-xl bg-dark-800/50 border border-white/5 p-1">
+            <button
+              onClick={() => setMode('image')}
+              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                mode === 'image'
+                  ? 'bg-neon-blue/15 text-neon-blue border border-neon-blue/20'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Image Generation
+            </button>
+            <button
+              onClick={() => setMode('video')}
+              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                mode === 'video'
+                  ? 'bg-neon-purple/15 text-neon-purple border border-neon-purple/20'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Video Generation
+            </button>
+          </div>
+        </div>
+
         {/* Prompt Input with Model Selector and Credit Warning */}
-        <PromptInput
-          onGenerate={handleGenerate}
-          isGenerating={isGenerating}
-          hasApiKey={hasApiKey}
-          models={models}
-          selectedModelId={selectedModelId}
-          onSelectModel={handleSelectModel}
-          isLoadingModels={isLoadingModels}
-          modelError={modelError}
-          onRefreshModels={handleFetchModels}
-          credits={credits}
-        />
+        {mode === 'image' ? (
+          <PromptInput
+            onGenerate={handleGenerate}
+            isGenerating={isGenerating}
+            hasApiKey={hasApiKey}
+            models={models}
+            selectedModelId={selectedModelId}
+            onSelectModel={handleSelectModel}
+            isLoadingModels={isLoadingModels}
+            modelError={modelError}
+            onRefreshModels={handleFetchModels}
+            credits={credits}
+          />
+        ) : (
+          <div className="space-y-4">
+            <VideoModeSelector
+              models={videoModels}
+              selectedModelId={selectedVideoModelId}
+              selectedRatio={selectedVideoRatio}
+              onSelectModel={(model) => setSelectedVideoModelId(model.id)}
+              onSelectRatio={(ratio) => setSelectedVideoRatio(ratio)}
+              isLoading={isLoadingVideoModels}
+              error={videoModelError}
+              onRefresh={handleFetchVideoModels}
+            />
+            <PromptInput
+              onGenerate={handleGenerate}
+              isGenerating={isGenerating}
+              hasApiKey={hasApiKey}
+              models={[]}
+              selectedModelId=""
+              onSelectModel={() => {}}
+              isLoadingModels={false}
+              modelError={null}
+              onRefreshModels={() => {}}
+              credits={credits}
+            />
+          </div>
+        )}
 
         {/* Error Display */}
         {error && (
@@ -455,7 +718,10 @@ export default function App() {
         )}
 
         {/* Image Gallery */}
-        <ImageGallery images={images} />
+        {mode === 'image' && <ImageGallery images={images} />}
+
+        {/* Video Gallery */}
+        {mode === 'video' && <VideoGallery videos={videos} />}
       </main>
 
       {/* ── Credit Toast Notification ────────────── */}
